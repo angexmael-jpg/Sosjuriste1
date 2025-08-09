@@ -155,3 +155,236 @@ body{
 @media(min-width:1100px){
   .grid{grid-template-columns:repeat(3,1fr)}
 }
+// Données : remplace / ajoute facilement des fiches ici (ou charge depuis JSON externe)
+const FICHES = [
+  {
+    id: 'seo-basics',
+    title: 'Référencement naturel (SEO) — notions essentielles',
+    matiere: 'Marketing digital',
+    date: '2025-08-09',
+    tags: ['SEO', 'visibilité', 'contenu'],
+    body: `Définition : Le SEO regroupe les techniques destinées à améliorer la position d'un site dans les résultats organiques des moteurs de recherche.
+Principes : mots-clés, structure du site, optimisation technique, qualité du contenu, netlinking.
+Bonnes pratiques : contenu unique, balises sémantiques, mobile-first, vitesse de chargement.`
+  },
+  {
+    id: 'sea-intro',
+    title: 'Référencement payant (SEA) — campagnes et ciblage',
+    matiere: 'Marketing digital',
+    date: '2025-08-02',
+    tags: ['SEA', 'ads', 'google'],
+    body: `Le SEA permet d'obtenir du trafic immédiat via des enchères sur mots-clés. Objectifs : conversions, acquisition rapide.
+Mesures clés : CTR, CPC, CPA, quality score.`
+  },
+  {
+    id: 'email-nurturing',
+    title: 'Email marketing et automatisation',
+    matiere: 'Marketing digital',
+    date: '2025-07-30',
+    tags: ['email', 'fidélisation', 'automation'],
+    body: `L'email marketing sert à fidéliser : newsletters, séquences d'onboarding, relances panier abandonné.
+Respect RGPD / consentement, segmentation, personnalisation et tests A/B.`
+  },
+  {
+    id: 'analytics',
+    title: 'Web analytics — mesurer pour optimiser',
+    matiere: 'Marketing digital',
+    date: '2025-06-12',
+    tags: ['analytics', 'KPI', 'ROI'],
+    body: `Suivre le comportement visiteurs (pages vues, taux de rebond, conversion).
+Outils : Google Analytics, Matomo. KPIs : taux de conversion, coût par acquisition.`
+  }
+];
+
+// Simple router: home | matieres | recherche | fiche/:id
+const app = document.getElementById('app');
+const navLinks = document.querySelectorAll('[data-route]');
+const yearEl = document.getElementById('year');
+yearEl.textContent = new Date().getFullYear();
+
+// Toggle menu on narrow screens
+const menuToggle = document.getElementById('menuToggle');
+menuToggle.addEventListener('click', () => {
+  const navList = document.getElementById('navList');
+  const expanded = menuToggle.getAttribute('aria-expanded') === 'true';
+  menuToggle.setAttribute('aria-expanded', String(!expanded));
+  navList.style.display = expanded ? '' : 'block';
+});
+
+// Route handling
+function navigate(route) {
+  history.pushState({route}, '', '#'+route);
+  renderRoute(route);
+}
+navLinks.forEach(a => a.addEventListener('click', e => {
+  e.preventDefault();
+  const r = a.dataset.route;
+  navigate(r);
+}));
+
+window.addEventListener('popstate', () => {
+  const hash = location.hash.replace('#','') || 'home';
+  renderRoute(hash);
+});
+
+function renderRoute(route) {
+  if(!route) route = 'home';
+  if(route.startsWith('fiche/')) {
+    const id = route.split('/')[1];
+    renderFichePage(id);
+    return;
+  }
+  switch(route) {
+    case 'matieres': renderMatieres(); break;
+    case 'recherche': renderRecherche(); break;
+    default: renderHome();
+  }
+}
+
+// Render Home
+function renderHome(){
+  document.title = 'Consultation Juridique — Accueil';
+  app.innerHTML = `
+    <section class="home-hero">
+      <h2>Bienvenue — Consultation Juridique pour étudiants</h2>
+      <p>Fiches synthétiques, notions clés, et ressources pour réviser rapidement.</p>
+      <div class="controls" style="margin-top:.75rem">
+        <input id="quickSearch" class="input" placeholder="Rechercher une fiche, ex: SEO, RJ..." aria-label="Recherche rapide">
+        <button id="voirMatieres" class="input">Voir par matières</button>
+      </div>
+    </section>
+
+    <section>
+      <h3>Fiches récentes</h3>
+      <div id="grid" class="grid" aria-live="polite"></div>
+    </section>
+  `;
+  document.getElementById('voirMatieres').addEventListener('click', ()=> navigate('matieres'));
+  const quick = document.getElementById('quickSearch');
+  quick.addEventListener('input', () => {
+    const q = quick.value.trim().toLowerCase();
+    renderGrid(filterFiches(q));
+  });
+  renderGrid(FICHES.slice().reverse());
+}
+
+// Render grid of fiches
+function renderGrid(list){
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  const tpl = document.getElementById('fiche-template');
+  if(list.length === 0){
+    grid.innerHTML = `<p>Aucune fiche trouvée.</p>`;
+    return;
+  }
+  list.forEach(f => {
+    const node = tpl.content.cloneNode(true);
+    node.querySelector('.fiche-title').textContent = f.title;
+    node.querySelector('.fiche-meta').textContent = `${f.matiere} — ${f.date}`;
+    node.querySelector('.fiche-body').textContent = f.body.substring(0,280) + (f.body.length>280?'…':'');
+    node.querySelector('.fiche-tags').textContent = 'Tags: ' + (f.tags||[]).join(', ');
+    const article = node.querySelector('article.fiche');
+    article.style.cursor = 'pointer';
+    article.addEventListener('click', ()=> navigate('fiche/'+f.id));
+    grid.appendChild(node);
+  });
+}
+
+// Render matieres page
+function renderMatieres(){
+  document.title = 'Consultation Juridique — Matières';
+  const matieres = Array.from(new Set(FICHES.map(f => f.matiere))).sort();
+  app.innerHTML = `
+    <section>
+      <h2>Matières</h2>
+      <ul id="matList"></ul>
+    </section>
+    <section style="margin-top:1rem">
+      <h3>Toutes les fiches</h3>
+      <div id="grid" class="grid"></div>
+    </section>
+  `;
+  const matList = document.getElementById('matList');
+  matieres.forEach(m=>{
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.className = 'input';
+    btn.textContent = m;
+    btn.addEventListener('click', ()=> renderGrid(FICHES.filter(f=>f.matiere===m)));
+    li.appendChild(btn);
+    matList.appendChild(li);
+  });
+  renderGrid(FICHES);
+}
+
+// Render recherche page
+function renderRecherche(){
+  document.title = 'Consultation Juridique — Recherche';
+  app.innerHTML = `
+    <section>
+      <h2>Recherche avancée</h2>
+      <div class="controls">
+        <input id="q" class="input" placeholder="Mot-clé, ex: responsabilité" aria-label="Mot-clé">
+        <input id="tag" class="input" placeholder="Tag (ex: SEO)" aria-label="Tag">
+        <button id="doSearch" class="input">Rechercher</button>
+      </div>
+      <div id="results" style="margin-top:1rem"></div>
+    </section>
+  `;
+  document.getElementById('doSearch').addEventListener('click', ()=> {
+    const q = document.getElementById('q').value.trim().toLowerCase();
+    const tag = document.getElementById('tag').value.trim().toLowerCase();
+    const res = FICHES.filter(f => {
+      const okQ = !q || (f.title+f.body+f.matiere).toLowerCase().includes(q);
+      const okT = !tag || (f.tags||[]).join(' ').toLowerCase().includes(tag);
+      return okQ && okT;
+    });
+    const results = document.getElementById('results');
+    results.innerHTML = `<h4>${res.length} résultat(s)</h4><div id="grid2" class="grid"></div>`;
+    const grid2 = document.getElementById('grid2');
+    res.forEach(f => {
+      const el = document.createElement('div');
+      el.className = 'fiche';
+      el.innerHTML = `<h3>${f.title}</h3><p class="fiche-meta">${f.matiere} — ${f.date}</p>
+        <p>${f.body.substring(0,220)}…</p>
+        <p class="fiche-tags">Tags: ${(f.tags||[]).join(', ')}</p>`;
+      el.addEventListener('click', ()=> navigate('fiche/'+f.id));
+      grid2.appendChild(el);
+    });
+  });
+}
+
+// Render fiche detail
+function renderFichePage(id){
+  const f = FICHES.find(x=>x.id===id);
+  if(!f){
+    app.innerHTML = `<section><h2>Fiche introuvable</h2><p>La fiche demandée est absente.</p><p><a href="#" data-route="home">Retour</a></p></section>`;
+    document.querySelectorAll('[data-route]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.route); }));
+    return;
+  }
+  document.title = `${f.title} — Consultation Juridique`;
+  app.innerHTML = `
+    <article class="fiche">
+      <h2>${f.title}</h2>
+      <p class="fiche-meta">${f.matiere} — ${f.date}</p>
+      <div class="fiche-body">${escapeHtml(f.body).replace(/\n/g,'<br>')}</div>
+      <div class="fiche-tags">Tags: ${(f.tags||[]).join(', ')}</div>
+      <div style="margin-top:1rem">
+        <button id="back" class="input">Retour</button>
+      </div>
+    </article>
+  `;
+  document.getElementById('back').addEventListener('click', ()=> navigate('home'));
+}
+
+// Small helpers
+function filterFiches(q){
+  if(!q) return FICHES.slice().reverse();
+  return FICHES.filter(f => (f.title+f.body+f.tags.join(' ')).toLowerCase().includes(q));
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+// Initial route
+renderRoute(location.hash.replace('#','') || 'home');
